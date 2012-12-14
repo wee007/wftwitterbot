@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+require "net/http"
 require "twitter"
 
 Twitter.configure do |config|
@@ -31,6 +32,37 @@ end
 # Twitter.search("to:justinbieber marry me", :count => 3, :result_type => "recent").results.map do |status|
 #   puts "#{status.from_user}: #{status.text}"
 # end
+Twitter.search("to:wflabs2012", :result_type => "recent").results.map do |status|
+  puts "#{status.from_user}: #{status.text}"
+  uri = URI("http://localhost:3000/products.json")
+
+  Net::HTTP.start(uri.host, uri.port) do |http|
+    request = Net::HTTP::Get.new(uri.request_uri)
+    response = http.request(request)
+    json_response = JSON.parse(response.body)
+
+    status.hashtags.each do |hashtag|
+      puts "\n[HASHTAG] #{hashtag["text"].downcase}"
+
+      json_response.each do |product|
+        if hashtag["text"].downcase.match(/.*#{product["brand"].downcase.gsub(/\s/,"")}.*/)
+          begin
+            Twitter.update("@#{status.from_user} Check out a product from ##{hashtag["text"]} at #{product['url']}", :in_reply_to_status_id => status.id)
+            puts "[RESPONSE] Replied"
+          rescue Twitter::Error::Forbidden => e
+            puts "[RESPONSE] Skipped - Already replied"
+          rescue Twitter::Error => e
+            puts "[ERROR] #{e}"
+          end
+
+          break
+        end
+      end
+    end
+  end
+
+  puts "========"
+end
 
 # puts Twitter.search("#ruby -rt", :lang => "ja", :count => 1).results.first.text
 
